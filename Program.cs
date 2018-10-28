@@ -13,6 +13,14 @@ using SixLabors.ImageSharp.Advanced;
 
 namespace ArtAscii
 {
+	/* TODO
+		= add option to output to text (probably should be default ?)
+			= this would remove the need to require a font (maybe..)
+		= add option to reduce space embetween characters (basically crop more)
+		= add option to select font size
+		= maybe add way to not use single dim parameter but treat x and y components independently
+			= aka use rectagles instead of squares
+	*/
 	static class Program
 	{
 		static void Main(string[] args)
@@ -60,18 +68,18 @@ namespace ArtAscii
 			max = double.MinValue;
 			min = double.MaxValue;
 			int dim = FindMaxDim(list,font);
-			Log.Debug("dim = "+dim);
+			//Log.Debug("dim = "+dim);
 
 			foreach(char c in list)
 			{
-				Log.Debug("Spriting "+c);
+				//Log.Debug("Spriting "+c);
 				var img = RenderCharSprite(c,font,dim);
 				using (var fs = File.OpenWrite("sprite-"+((int)c)+".png")) {
 					img.SaveAsPng(fs);
 				}
 				CharSpriteMap.Add(c,img);
 				double avg = FindAverageGray(img);
-				Log.Debug("Spriting avg = "+avg);
+				//Log.Debug("Spriting avg = "+avg);
 				SpriteGrayMap.TryAdd(avg,img);
 				if (avg > max) { max = avg; }
 				if (avg < min) { min = avg; }
@@ -101,7 +109,7 @@ namespace ArtAscii
 						VerticalAlignment = VerticalAlignment.Center
 					},c.ToString(),font,Rgba32.White,new PointF(dim/2.0f,dim/2.0f)
 				);
-				ctx.Crop(new Rectangle(0,0,dim,dim)); //this is copping the center.. now sure how
+				ctx.Crop(new Rectangle(0,0,dim,dim)); //this is cropping the center.. now sure how
 			});
 			return img;
 		}
@@ -114,6 +122,18 @@ namespace ArtAscii
 					return false;
 				}
 				SelectedFont = new Font(family,FontSize,Options.StyleOfFont);
+				Log.Debug("FontInfo: "
+					+"\n\tAscender\t"+SelectedFont.Ascender
+					+"\n\tBold\t"+SelectedFont.Bold
+					+"\n\tDescender\t"+SelectedFont.Descender
+					+"\n\tEmSize\t"+SelectedFont.EmSize
+					+"\n\tFamily.Name\t"+SelectedFont.Family.Name
+					+"\n\tItalic\t"+SelectedFont.Italic
+					+"\n\tLineGap\t"+SelectedFont.LineGap
+					+"\n\tLineHeight\t"+SelectedFont.LineHeight
+					+"\n\tName\t"+SelectedFont.Name
+					+"\n\tSize\t"+SelectedFont.Size
+				);
 			}
 			else if (!String.IsNullOrWhiteSpace(Options.FontFile)) {
 				if (!File.Exists(Options.FontFile)) {
@@ -128,7 +148,7 @@ namespace ArtAscii
 				return false;
 			}
 
-			Log.Debug("Options.WhichSet = "+Options.WhichSet);
+			//Log.Debug("Options.WhichSet = "+Options.WhichSet);
 			if (Options.WhichSet != CharSets.Set.None) {
 				SelectedCharSet = CharSets.Get(Options.WhichSet);
 			}
@@ -206,55 +226,56 @@ namespace ArtAscii
 			//gmin and gmax are source range of gray
 			//sgmax, sgmin are the sprite range of gray
 			double sg = (sgmax - sgmin) / (gmax - gmin) * (g - gmin) + sgmin;
-			Log.Debug(sg+" = ("+sgmax+" - "+sgmin+") / ("+gmax+" - "+gmin+") * "+g);
+			//Log.Debug(sg+" = ("+sgmax+" - "+sgmin+") / ("+gmax+" - "+gmin+") * "+g);
 
 			//find closest sprite gray to sg
 			int index = FindClosestIndex(SpriteGrayMap.Keys, sg);
-			Log.Debug("index = "+index+" "+SpriteGrayMap.Count);
+			//Log.Debug("index = "+index+" "+SpriteGrayMap.Count);
 			return SpriteGrayMap[SpriteGrayMap.Keys[index]];
 		}
 
 		static int FindClosestIndex(IList<double> list, double target)
 		{
-			for(int i=0; i<list.Count; i++) {
-				Log.Debug(i+" = "+list[i]);
-			}
+			//for(int i=0; i<list.Count; i++) {
+			//	Log.Debug(i+" = "+list[i]);
+			//}
 			int len = list.Count;
-			Log.Debug("FCI len = "+len);
+			//Log.Debug("FCI len = "+len);
 			int left = 0, right = len - 1;
 			if (target.CompareTo(list[0]) < 0) {
-				Log.Debug("FCI super left "+list[0]+" - "+target);
+				//Log.Debug("FCI super left "+list[0]+" - "+target);
 				return 0;
 			} else if (target.CompareTo(list[right]) > 0) {
-				Log.Debug("FCI super right "+list[right]+" - "+target);
+				//Log.Debug("FCI super right "+list[right]+" - "+target);
 				return right;
 			}
 
-			int count = 20;
+			//do a binary search
+			int count = 1000;
 			while(left <= right && --count > 0) {
-				Log.Debug("FCI l="+left+" r="+right);
+				//Log.Debug("FCI l="+left+" r="+right);
 				int mid = left + (right - left) / 2;
 				double num = list[mid];
 				int comp = num.CompareTo(target);
-				Log.Debug("FCI "+target+" comp "+num+" = "+comp);
+				//Log.Debug("FCI "+target+" comp "+num+" = "+comp);
 				if (comp == 0) {
-					Log.Debug("FCI mid");
+					//Log.Debug("FCI mid");
 					return mid;
 				}
 				if (comp < 0) {
-					Log.Debug("FCI left");
+					//Log.Debug("FCI left");
 					left = mid + 1;
 				} else {
-					Log.Debug("FCI right");
+					//Log.Debug("FCI right");
 					right = mid - 1;
 				}
 			}
 
-
+			//round to the nearest whole index
 			if (left >= len - 1) { left = len - 2; }
 			double vmid = list[left+1] - list[left];
 			int final = target > vmid ? left + 1 : left;
-			Log.Debug("final = "+final);
+			//Log.Debug("final = "+final);
 			return final;
 
 		}

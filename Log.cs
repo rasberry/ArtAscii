@@ -17,7 +17,7 @@ namespace ArtAscii
 		public static void Debug(string m)
 		{
 			#if DEBUG
-			//Console.WriteLine("D: "+m);
+			Console.WriteLine("D: "+m);
 			#endif
 		}
 	}
