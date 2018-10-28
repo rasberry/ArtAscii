@@ -13,5 +13,12 @@ namespace ArtAscii
 		{
 			Console.Error.WriteLine("E: "+e);
 		}
+
+		public static void Debug(string m)
+		{
+			#if DEBUG
+			//Console.WriteLine("D: "+m);
+			#endif
+		}
 	}
 }

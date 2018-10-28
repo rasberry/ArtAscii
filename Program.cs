@@ -9,10 +9,11 @@ using SixLabors.Shapes;
 using System.IO;
 using System.Collections.Generic;
 using System.Text;
+using SixLabors.ImageSharp.Advanced;
 
 namespace ArtAscii
 {
-	class Program
+	static class Program
 	{
 		static void Main(string[] args)
 		{
@@ -25,18 +26,6 @@ namespace ArtAscii
 			} finally {
 				Dispose();
 			}
-
-			//using (var img = new Image<Rgba32>(200,200))
-			//{
-			//	var ff = new FontCollection().Install("Roboto-Regular.ttf");
-			//	var font = ff.CreateFont(24);
-			//	img.Mutate(ctx => {
-			//		ctx.DrawText("test",font,Rgba32.Black,new PointF(0,0));
-			//	});
-			//	using(var fs = File.Open("image.png",FileMode.Create,FileAccess.ReadWrite,FileShare.Read)) {
-			//		img.SaveAsPng(fs);
-			//	}
-			//}
 		}
 
 		static void MainMain()
@@ -48,8 +37,17 @@ namespace ArtAscii
 			if (!LoadResources()) {
 				return;
 			}
-			CreateCharSprites(SelectedCharSet,SelectedFont);
-			using(var img = RenderArt(Options.CharWidth,Options.CharHeight)) {
+
+			double smax, smin;
+			int dim = CreateCharSprites(SelectedCharSet,SelectedFont, out smax,out smin);
+
+			//If the character render width/height are not set use the image dimensions
+			if (Options.CharWidth < 1 || Options.CharHeight < 1) {
+				Options.CharWidth = SourceImage.Width / dim;
+				Options.CharHeight = SourceImage.Height / dim;
+			}
+
+			using(var img = RenderArt(Options.CharWidth,Options.CharHeight, dim, smax, smin)) {
 				if (img == null) { return; }
 				using(var fs = File.Open(Options.OutputName,FileMode.Create,FileAccess.ReadWrite,FileShare.Read)) {
 					img.SaveAsPng(fs);
@@ -57,56 +55,55 @@ namespace ArtAscii
 			}
 		}
 
-		static void CreateCharSprites(char[] list,Font font)
+		static int CreateCharSprites(char[] list,Font font, out double max, out double min)
 		{
+			max = double.MinValue;
+			min = double.MaxValue;
+			int dim = FindMaxDim(list,font);
+			Log.Debug("dim = "+dim);
+
 			foreach(char c in list)
 			{
-				var img = RenderCharSprite(c,font);
+				Log.Debug("Spriting "+c);
+				var img = RenderCharSprite(c,font,dim);
+				using (var fs = File.OpenWrite("sprite-"+((int)c)+".png")) {
+					img.SaveAsPng(fs);
+				}
 				CharSpriteMap.Add(c,img);
+				double avg = FindAverageGray(img);
+				Log.Debug("Spriting avg = "+avg);
+				SpriteGrayMap.TryAdd(avg,img);
+				if (avg > max) { max = avg; }
+				if (avg < min) { min = avg; }
 			}
+			return dim;
 		}
 
-		static Image<Rgba32> RenderCharSprite(Char c,Font font)
+		static int FindMaxDim(char[] list,Font font)
 		{
-			string sChar = c.ToString();
-			SizeF size = TextMeasurer.Measure(sChar,new RendererOptions(font));
-			int dim = (int)Math.Ceiling(Math.Max(size.Width,size.Height));
-			var img = new Image<Rgba32>(Configuration.Default,dim,dim,Rgba32.Black);
+			var ro = new RendererOptions(font);
+			float max = float.MinValue;
+			foreach(char c in list) {
+				SizeF size = TextMeasurer.Measure(c.ToString(),new RendererOptions(font));
+				if (size.Width > max) { max = size.Width; }
+				if (size.Height > max) { max = size.Height; }
+			}
+			return (int)Math.Ceiling(max);
+		}
+
+		static Image<Rgba32> RenderCharSprite(Char c,Font font, int dim)
+		{
+			int workdim = 2 * dim;
+			var img = new Image<Rgba32>(Configuration.Default,workdim,workdim,Rgba32.Black);
 			img.Mutate((ctx) => {
 				ctx.DrawText(new TextGraphicsOptions(true) {
 						HorizontalAlignment = HorizontalAlignment.Center,
 						VerticalAlignment = VerticalAlignment.Center
-					},sChar,font,Rgba32.White,new PointF(dim/2.0f,dim/2.0f)
+					},c.ToString(),font,Rgba32.White,new PointF(dim/2.0f,dim/2.0f)
 				);
+				ctx.Crop(new Rectangle(0,0,dim,dim)); //this is copping the center.. now sure how
 			});
 			return img;
-/*
-        public static IImageProcessingContext<TPixel> ApplyScalingWaterMarkSimple<TPixel>(this IImageProcessingContext<TPixel> processingContext, Font font, string text, TPixel color, float padding)
-            where TPixel : struct, IPixel<TPixel>
-        {
-            return processingContext.Apply(img =>
-            {
-                float targetWidth = img.Width - (padding * 2);
-                float targetHeight = img.Height - (padding * 2);
-
-                // measure the text size
-                SizeF size = TextMeasurer.Measure(text, new RendererOptions(font));
-
-                //find out how much we need to scale the text to fill the space (up or down)
-                float scalingFactor = Math.Min(img.Width / size.Width, img.Height / size.Height);
-
-                //create a new font 
-                Font scaledFont = new Font(font, scalingFactor * font.Size);
-
-                var center = new PointF(img.Width / 2, img.Height / 2);
-                var textGraphicOptions = new TextGraphicsOptions(true) {
-                    HorizontalAlignment = HorizontalAlignment.Center,
-                    VerticalAlignment = VerticalAlignment.Center
-                };
-                img.Mutate(i => i.DrawText(textGraphicOptions, text, scaledFont, color, center));
-            });
-		}
-*/
 		}
 
 		static bool LoadResources()
@@ -131,6 +128,7 @@ namespace ArtAscii
 				return false;
 			}
 
+			Log.Debug("Options.WhichSet = "+Options.WhichSet);
 			if (Options.WhichSet != CharSets.Set.None) {
 				SelectedCharSet = CharSets.Get(Options.WhichSet);
 			}
@@ -170,27 +168,13 @@ namespace ArtAscii
 			return true;
 		}
 
-		static Image<Rgba32> RenderArt(int charW, int charH)
+		static Image<Rgba32> RenderArt(int charW, int charH, int dim, double sgmax, double sgmin)
 		{
-			int maxSpriteW = int.MinValue;
-			int maxSpriteH = int.MinValue;
-			foreach(var kvp in CharSpriteMap) {
-				var size = kvp.Value.Size();
-				if (size.Width > maxSpriteW) {
-					maxSpriteW = size.Width;
-				}
-				if (size.Height > maxSpriteH) {
-					maxSpriteH = size.Height;
-				}
-			}
-			if (maxSpriteH < 1 || maxSpriteW < 1) {
-				Log.Error("character sprite sizes are broken ["+maxSpriteW+","+maxSpriteH+"]");
-				return null;
-			}
-
-			var img = new Image<Rgba32>(charW * maxSpriteW,charH * maxSpriteH);
+			var img = new Image<Rgba32>(charW * dim,charH * dim);
 
 			//TODO resize is the naive implementation - maybe also do a more advanced version
+			//humm.. actually i was thinking about grabbing each box of pixels, matching the size of the sprite
+			// then finding the one that matches the closest (using diff or something)
 			SourceImage.Mutate((ctx) => {
 				ctx.Resize(new ResizeOptions {
 					Mode = ResizeMode.Stretch,
@@ -199,16 +183,116 @@ namespace ArtAscii
 				});
 			});
 
-			//TODO convert to grayscale - wait.. we need charmap number of levels..
-			//	might have to do a manual calculation unless i can use float based image
-			//TODO read each pixel value and assign corresponding character
-			
-			//humm.. actually i was thinking about grabbing each box of pixels, matching the size of the sprite
-			// then finding the one that matches the closest (using diff or something)
-			//
+			FindGrayMinMax(SourceImage,out double gmin, out double gmax);
+
+			for(int y=0; y<charH; y++)
+			{
+				for(int x=0; x<charH; x++)
+				{
+					var sc = SourceImage.GetPixelRowSpan(y)[x];
+					var simg = MapGrayToSprite(ToGray(sc),gmax,gmin,sgmax,sgmin);
+					img.Mutate(ctx => {
+						ctx.DrawImage(simg,1.0f,new Point(x * dim,y * dim));
+					});
+				}
+			}
+
+			return img;
+		}
+
+		static Image<Rgba32> MapGrayToSprite(double g, double gmax,double gmin, double sgmax, double sgmin)
+		{
+			//g is the source gray index
+			//gmin and gmax are source range of gray
+			//sgmax, sgmin are the sprite range of gray
+			double sg = (sgmax - sgmin) / (gmax - gmin) * (g - gmin) + sgmin;
+			Log.Debug(sg+" = ("+sgmax+" - "+sgmin+") / ("+gmax+" - "+gmin+") * "+g);
+
+			//find closest sprite gray to sg
+			int index = FindClosestIndex(SpriteGrayMap.Keys, sg);
+			Log.Debug("index = "+index+" "+SpriteGrayMap.Count);
+			return SpriteGrayMap[SpriteGrayMap.Keys[index]];
+		}
+
+		static int FindClosestIndex(IList<double> list, double target)
+		{
+			for(int i=0; i<list.Count; i++) {
+				Log.Debug(i+" = "+list[i]);
+			}
+			int len = list.Count;
+			Log.Debug("FCI len = "+len);
+			int left = 0, right = len - 1;
+			if (target.CompareTo(list[0]) < 0) {
+				Log.Debug("FCI super left "+list[0]+" - "+target);
+				return 0;
+			} else if (target.CompareTo(list[right]) > 0) {
+				Log.Debug("FCI super right "+list[right]+" - "+target);
+				return right;
+			}
+
+			int count = 20;
+			while(left <= right && --count > 0) {
+				Log.Debug("FCI l="+left+" r="+right);
+				int mid = left + (right - left) / 2;
+				double num = list[mid];
+				int comp = num.CompareTo(target);
+				Log.Debug("FCI "+target+" comp "+num+" = "+comp);
+				if (comp == 0) {
+					Log.Debug("FCI mid");
+					return mid;
+				}
+				if (comp < 0) {
+					Log.Debug("FCI left");
+					left = mid + 1;
+				} else {
+					Log.Debug("FCI right");
+					right = mid - 1;
+				}
+			}
+
+
+			if (left >= len - 1) { left = len - 2; }
+			double vmid = list[left+1] - list[left];
+			int final = target > vmid ? left + 1 : left;
+			Log.Debug("final = "+final);
+			return final;
 
 		}
 
+		static void FindGrayMinMax(Image<Rgba32> img,out double min,out double max)
+		{
+			max = double.MinValue;
+			min = double.MaxValue;
+			int w = img.Width;
+			int h = img.Height;
+			for(int y=0; y<h; y++) {
+				var row = img.GetPixelRowSpan(y);
+				for(int x=0; x<w; x++) {
+					var c = row[x];
+					double g = ToGray(c);
+					if (g > max) { max = g; }
+					if (g < min) { min = g; }
+				}
+			}
+		}
+		static double ToGray(Rgba32 color)
+		{
+			//TODO maybe incorporate alpha ?
+			return color.R * 0.2126 + color.G * 0.7152 + color.B * 0.0722;
+		}
+
+		static double FindAverageGray(Image<Rgba32> img)
+		{
+			var avgImg = img.Clone((ctx) => {
+				ctx.Resize(new ResizeOptions {
+					Mode = ResizeMode.Stretch,
+					Sampler = KnownResamplers.Lanczos3,
+					Size = new Size(1,1)
+				});
+			});
+			var span = avgImg.GetPixelSpan();
+			return ToGray(span[0]);
+		}
 		static void Dispose()
 		{
 			if (CharSpriteMap != null) {
@@ -216,9 +300,13 @@ namespace ArtAscii
 					kvp.Value?.Dispose();
 				}
 			}
+			if (SourceImage != null) {
+				SourceImage.Dispose();
+			}
 		}
 
 		static Dictionary<char,Image<Rgba32>> CharSpriteMap = new Dictionary<char,Image<Rgba32>>();
+		static SortedList<double,Image<Rgba32>> SpriteGrayMap = new SortedList<double,Image<Rgba32>>();
 		static Image<Rgba32> SourceImage = null;
 		static char[] SelectedCharSet = null;
 		static Font SelectedFont = null;

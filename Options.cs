@@ -17,7 +17,7 @@ namespace ArtAscii
 
 		static void Usage()
 		{
-			Log.Message("Usage: "+nameof(ArtAscii)+" [options] (input image)"
+			Log.Message("Usage: "+nameof(ArtAscii)+" [options] (input image) [output image]"
 				+"\n Options:"
 				+"\n  -c  (character set)   A set of characters to use for the mapping"
 				+"\n  -f  (font file)       Font file used for rendering characters"
@@ -41,10 +41,12 @@ namespace ArtAscii
 			{
 				string curr = args[a];
 				if (curr == "-c" && ++a < args.Length) {
-					if (!Enum.TryParse<CharSets.Set>(args[a],true,out CharSets.Set WhichSet)) {
+					CharSets.Set whichSet = CharSets.Set.None;
+					if (!Enum.TryParse<CharSets.Set>(args[a],true,out whichSet)) {
 						Log.Error("Unknown characer set");
 						return false;
 					}
+					WhichSet = whichSet;
 				}
 				else if (curr == "-f" && ++a < args.Length) {
 					FontFile = args[a];
@@ -84,18 +86,23 @@ namespace ArtAscii
 				else if (curr == "-sf" && ++a < args.Length) {
 					SystemFont = args[a];
 				}
-				else if (curr == "-o" && ++a < args.Length) {
-					OutputName = args[a];
-				}
 				else if (null == InputName) {
 					InputName = curr;
 				}
+				else if (null == OutputName) {
+					OutputName = curr;
+				}
 			}
-			
+
 			//Set any dynamic defaults here
 			if (String.IsNullOrWhiteSpace(OutputName)) {
 				OutputName = nameof(ArtAscii).ToLowerInvariant()
-					+ "-" + DateTime.Now.ToString("yyyyMMdd-HHmmss");
+					+ "-" + DateTime.Now.ToString("yyyyMMdd-HHmmss") + ".png";
+			}
+			else {
+				if (!OutputName.EndsWith(".png")) {
+					OutputName += ".png";
+				}
 			}
 
 			return true;
