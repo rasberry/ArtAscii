@@ -14,8 +14,6 @@ using SixLabors.ImageSharp.Advanced;
 namespace ArtAscii
 {
 	/* TODO
-		= add option to output to text (probably should be default ?)
-			= this would remove the need to require a font (maybe..)
 		= add option to reduce space embetween characters (basically crop more)
 		= add option to select font size
 		= maybe add way to not use single dim parameter but treat x and y components independently
