@@ -55,10 +55,22 @@ namespace ArtAscii
 				Options.CharHeight = SourceImage.Height / dim;
 			}
 
-			using(var img = RenderArt(Options.CharWidth,Options.CharHeight, dim, smax, smin)) {
-				if (img == null) { return; }
+			if (Options.OutputText)
+			{
+				string txt = RenderArtAsText(Options.CharWidth,Options.CharHeight, dim, smax, smin);
+				if (txt == null) { return; }
 				using(var fs = File.Open(Options.OutputName,FileMode.Create,FileAccess.ReadWrite,FileShare.Read)) {
-					img.SaveAsPng(fs);
+					var buff = Encoding.UTF8.GetBytes(txt);
+					fs.Write(buff,0,buff.Length);
+				}
+			}
+			else
+			{
+				using(var img = RenderArtAsImage(Options.CharWidth,Options.CharHeight, dim, smax, smin)) {
+					if (img == null) { return; }
+					using(var fs = File.Open(Options.OutputName,FileMode.Create,FileAccess.ReadWrite,FileShare.Read)) {
+						img.SaveAsPng(fs);
+					}
 				}
 			}
 		}
@@ -80,7 +92,7 @@ namespace ArtAscii
 				CharSpriteMap.Add(c,img);
 				double avg = FindAverageGray(img);
 				//Log.Debug("Spriting avg = "+avg);
-				SpriteGrayMap.TryAdd(avg,img);
+				SpriteGrayMap.TryAdd(avg,c);
 				if (avg > max) { max = avg; }
 				if (avg < min) { min = avg; }
 			}
@@ -104,7 +116,8 @@ namespace ArtAscii
 			int workdim = 2 * dim;
 			var img = new Image<Rgba32>(Configuration.Default,workdim,workdim,Rgba32.Black);
 			img.Mutate((ctx) => {
-				ctx.DrawText(new TextGraphicsOptions(true) {
+				ctx.DrawText(
+					new TextGraphicsOptions(true) {
 						HorizontalAlignment = HorizontalAlignment.Center,
 						VerticalAlignment = VerticalAlignment.Center
 					},c.ToString(),font,Rgba32.White,new PointF(dim/2.0f,dim/2.0f)
@@ -188,10 +201,41 @@ namespace ArtAscii
 			return true;
 		}
 
-		static Image<Rgba32> RenderArt(int charW, int charH, int dim, double sgmax, double sgmin)
+		static Image<Rgba32> RenderArtAsImage(int charW, int charH, int dim, double sgmax, double sgmin)
 		{
 			var img = new Image<Rgba32>(charW * dim,charH * dim);
 
+			RenderArtClient(charW,charH,dim,sgmax,sgmin,(int x,int y,char c) => {
+				var simg = CharSpriteMap[c];
+				img.Mutate(ctx => {
+					ctx.DrawImage(simg,1.0f,new Point(x * dim,y * dim));
+				});
+			});
+
+			return img;
+		}
+
+		static string RenderArtAsText(int charW, int charH, int dim, double sgmax, double sgmin)
+		{
+			char[,] arr = new char[charW,charH];
+
+			RenderArtClient(charW,charH,dim,sgmax,sgmin,(int x,int y,char c) => {
+				arr[x,y] = c;
+			});
+
+			StringBuilder sb = new StringBuilder();
+			for(int y=0; y<charH; y++) {
+				for(int x=0; x<charW; x++) {
+					sb.Append(arr[x,y]);
+				}
+				sb.AppendLine();
+			}
+			return sb.ToString();
+		}
+
+		//TODO could just have this return a char[,] instead of using a callback. not sure which is better.
+		static void RenderArtClient(int charW, int charH, int dim, double sgmax, double sgmin, Action<int,int,char> visitor)
+		{
 			//TODO resize is the naive implementation - maybe also do a more advanced version
 			//humm.. actually i was thinking about grabbing each box of pixels, matching the size of the sprite
 			// then finding the one that matches the closest (using diff or something)
@@ -207,20 +251,16 @@ namespace ArtAscii
 
 			for(int y=0; y<charH; y++)
 			{
-				for(int x=0; x<charH; x++)
+				for(int x=0; x<charW; x++)
 				{
 					var sc = SourceImage.GetPixelRowSpan(y)[x];
-					var simg = MapGrayToSprite(ToGray(sc),gmax,gmin,sgmax,sgmin);
-					img.Mutate(ctx => {
-						ctx.DrawImage(simg,1.0f,new Point(x * dim,y * dim));
-					});
+					var c = MapGrayToChar(ToGray(sc),gmax,gmin,sgmax,sgmin);
+					visitor(x,y,c);
 				}
 			}
-
-			return img;
 		}
 
-		static Image<Rgba32> MapGrayToSprite(double g, double gmax,double gmin, double sgmax, double sgmin)
+		static char MapGrayToChar(double g, double gmax,double gmin, double sgmax, double sgmin)
 		{
 			//g is the source gray index
 			//gmin and gmax are source range of gray
@@ -327,7 +367,7 @@ namespace ArtAscii
 		}
 
 		static Dictionary<char,Image<Rgba32>> CharSpriteMap = new Dictionary<char,Image<Rgba32>>();
-		static SortedList<double,Image<Rgba32>> SpriteGrayMap = new SortedList<double,Image<Rgba32>>();
+		static SortedList<double,char> SpriteGrayMap = new SortedList<double,char>();
 		static Image<Rgba32> SourceImage = null;
 		static char[] SelectedCharSet = null;
 		static Font SelectedFont = null;

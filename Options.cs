@@ -17,7 +17,7 @@ namespace ArtAscii
 
 		static void Usage()
 		{
-			Log.Message("Usage: "+nameof(ArtAscii)+" [options] (input image) [output image]"
+			Log.Message("Usage: "+nameof(ArtAscii)+" [options] (input image) [output file]"
 				+"\n Options:"
 				+"\n  -c  (character set)   A set of characters to use for the mapping"
 				+"\n  -f  (font file)       Font file used for rendering characters"
@@ -27,6 +27,7 @@ namespace ArtAscii
 				+"\n  -it (text file)       A utf-8 encoded file to use as the source of characters"
 				+"\n  -lf                   List system fonts and exit"
 				+"\n  -sf (font name)       Use system font with given name"
+				+"\n  -ot                   Output as text instead of an image"
 				+"\n\n Characer Sets:"
 			);
 			var nameList = Enum.GetNames(typeof(CharSets.Set));
@@ -86,6 +87,9 @@ namespace ArtAscii
 				else if (curr == "-sf" && ++a < args.Length) {
 					SystemFont = args[a];
 				}
+				else if (curr == "-ot") {
+					OutputText = true;
+				}
 				else if (null == InputName) {
 					InputName = curr;
 				}
@@ -97,12 +101,11 @@ namespace ArtAscii
 			//Set any dynamic defaults here
 			if (String.IsNullOrWhiteSpace(OutputName)) {
 				OutputName = nameof(ArtAscii).ToLowerInvariant()
-					+ "-" + DateTime.Now.ToString("yyyyMMdd-HHmmss") + ".png";
+					+ "-" + DateTime.Now.ToString("yyyyMMdd-HHmmss");
 			}
-			else {
-				if (!OutputName.EndsWith(".png")) {
-					OutputName += ".png";
-				}
+			string suffix = OutputText ? ".txt" : ".png";
+			if (!OutputName.EndsWith(suffix)) {
+				OutputName += suffix;
 			}
 
 			return true;
@@ -146,5 +149,6 @@ namespace ArtAscii
 		public static FontStyle StyleOfFont = FontStyle.Regular;
 		public static string OutputName = null;
 		public static string InputName = null;
+		public static bool OutputText = false;
 	}
 }
