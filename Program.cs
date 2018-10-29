@@ -18,6 +18,12 @@ namespace ArtAscii
 		= add option to select font size
 		= maybe add way to not use single dim parameter but treat x and y components independently
 			= aka use rectagles instead of squares
+		= maybe allow a set of input images instead of using a font
+			= this would be another render mode - for collage art
+			= would need to put back color matching instead of always using ToGray
+			= could also allow a single 'source' image that gets cut up and used as the sprites
+			= hummm.. so if you used a single image as both input and output
+			 - it would just be puzzling the pieces back together as they were ?
 	*/
 	static class Program
 	{
