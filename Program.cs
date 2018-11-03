@@ -14,8 +14,6 @@ using SixLabors.ImageSharp.Advanced;
 namespace ArtAscii
 {
 	/* TODO
-		= add option to reduce space embetween characters (basically crop more)
-		= add option to select font size
 		= maybe allow a set of input images instead of using a font
 			= this would be another render mode - for collage art
 			= would need to put back color matching instead of always using ToGray
@@ -132,10 +130,10 @@ namespace ArtAscii
 		static Image<Rgba32> RenderCharSprite(Char c,Font font, Size dim)
 		{
 			const int workingscale = 2;
-			int w = dim.Width * workingscale;
-			int h = dim.Height * workingscale;
-			int x = w * (workingscale - 1)/4;
-			int y = h * (workingscale - 1)/4;
+			int w = Math.Max(4,dim.Width * workingscale);
+			int h = Math.Max(4,dim.Height * workingscale);
+			int x = (w - dim.Width)/2;
+			int y = (h - dim.Width)/2;
 			var img = new Image<Rgba32>(Configuration.Default,w,h,Rgba32.Black);
 			img.Mutate((ctx) => {
 				ctx.DrawText(
@@ -156,7 +154,7 @@ namespace ArtAscii
 					Log.Error("font '"+Options.SystemFont+" not found");
 					return false;
 				}
-				SelectedFont = new Font(family,FontSize,Options.StyleOfFont);
+				SelectedFont = new Font(family,Options.FontSize,Options.StyleOfFont);
 				//Log.Debug("FontInfo: "
 				//	+"\n\tAscender\t"+SelectedFont.Ascender
 				//	+"\n\tBold\t"+SelectedFont.Bold
@@ -176,7 +174,7 @@ namespace ArtAscii
 					return false;
 				}
 				var col = new FontCollection().Install(Options.FontFile);
-				SelectedFont = col.CreateFont(FontSize,Options.StyleOfFont);
+				SelectedFont = col.CreateFont(Options.FontSize,Options.StyleOfFont);
 			}
 			else {
 				Log.Error("no font specified");
@@ -395,7 +393,6 @@ namespace ArtAscii
 		static Image<Rgba32> SourceImage = null;
 		static char[] SelectedCharSet = null;
 		static Font SelectedFont = null;
-		const float FontSize = 12.0f;
 	}
 }
 

@@ -24,6 +24,7 @@ namespace ArtAscii
 				+"\n  -sf (font name)       Use system font with given name"
 				+"\n  -f  (font file)       Font file used for rendering characters"
 				+"\n  -fs (style)           Choose a font style"
+				+"\n  -pt (number)          Font size in points (defaults to 12.0)"
 				+"\n  -tw (number)          Width in characters of output"
 				+"\n  -th (number)          Height in characters of output"
 				+"\n  -it (text file)       A utf-8 encoded file to use as the source of characters"
@@ -91,6 +92,12 @@ namespace ArtAscii
 				else if (curr == "-ot") {
 					OutputText = true;
 				}
+				else if (curr == "-pt" && ++a < args.Length) {
+					if (!float.TryParse(args[a],out FontSize)) {
+						Log.Error("Invalid font size");
+						return false;
+					}
+				}
 				else if (null == InputName) {
 					InputName = curr;
 				}
@@ -115,6 +122,10 @@ namespace ArtAscii
 			}
 			if (null != SystemFont && null != FontFile) {
 				Log.Warn("Option '-sf' takes precedence over '-f'");
+			}
+			if (FontSize < 1.0f) {
+				Log.Error("Font size must be at least 1.0");
+				return false;
 			}
 
 			return true;
@@ -159,5 +170,6 @@ namespace ArtAscii
 		public static string OutputName = null;
 		public static string InputName = null;
 		public static bool OutputText = false;
+		public static float FontSize = 12.0f;
 	}
 }
