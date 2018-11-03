@@ -14,6 +14,16 @@ namespace ArtAscii
 			Console.Error.WriteLine("E: "+e);
 		}
 
+		public static void Info(string m)
+		{
+			Console.WriteLine("I: "+m);
+		}
+
+		public static void Warn(string w)
+		{
+			Console.Error.WriteLine("W: "+w);
+		}
+
 		public static void Debug(string m)
 		{
 			#if DEBUG

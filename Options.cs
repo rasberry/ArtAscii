@@ -28,6 +28,7 @@ namespace ArtAscii
 				+"\n  -th (number)          Height in characters of output"
 				+"\n  -it (text file)       A utf-8 encoded file to use as the source of characters"
 				+"\n  -ot                   Output as text instead of an image"
+				+"\n  -v                    Show additional information"
 				+"\n\n Characer Sets:"
 			);
 			var nameList = Enum.GetNames(typeof(CharSets.Set));
@@ -106,6 +107,14 @@ namespace ArtAscii
 			string suffix = OutputText ? ".txt" : ".png";
 			if (!OutputName.EndsWith(suffix)) {
 				OutputName += suffix;
+			}
+
+			//Do sanity checks / warnings here
+			if (null != CharFile && WhichSet != CharSets.Set.None) {
+				Log.Warn("Option '-c' takes precedence over '-it'");
+			}
+			if (null != SystemFont && null != FontFile) {
+				Log.Warn("Option '-sf' takes precedence over '-f'");
 			}
 
 			return true;
