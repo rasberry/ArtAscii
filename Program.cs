@@ -16,8 +16,6 @@ namespace ArtAscii
 	/* TODO
 		= add option to reduce space embetween characters (basically crop more)
 		= add option to select font size
-		= maybe add way to not use single dim parameter but treat x and y components independently
-			= aka use rectagles instead of squares
 		= maybe allow a set of input images instead of using a font
 			= this would be another render mode - for collage art
 			= would need to put back color matching instead of always using ToGray
@@ -51,12 +49,12 @@ namespace ArtAscii
 			}
 
 			double smax, smin;
-			int dim = CreateCharSprites(SelectedCharSet,SelectedFont, out smax,out smin);
+			Size dim = CreateCharSprites(SelectedCharSet,SelectedFont, out smax,out smin);
 
 			//If the character render width/height are not set use the image dimensions
 			if (Options.CharWidth < 1 && Options.CharHeight < 1) {
-				Options.CharWidth = SourceImage.Width / dim;
-				Options.CharHeight = SourceImage.Height / dim;
+				Options.CharWidth = SourceImage.Width / dim.Width;
+				Options.CharHeight = SourceImage.Height / dim.Height;
 			} else if (Options.CharWidth < 1) {
 				double ratio = (double)SourceImage.Width / SourceImage.Height;
 				Options.CharWidth = (int)(ratio * Options.CharHeight);
@@ -89,20 +87,20 @@ namespace ArtAscii
 			}
 		}
 
-		static int CreateCharSprites(char[] list,Font font, out double max, out double min)
+		static Size CreateCharSprites(char[] list,Font font, out double max, out double min)
 		{
 			max = double.MinValue;
 			min = double.MaxValue;
-			int dim = FindMaxDim(list,font);
-			//Log.Debug("dim = "+dim);
+			Size dim = FindMaxDim(list,font);
+			Log.Debug("dim = ["+dim.Width+"x"+dim.Height+"]");
 
 			foreach(char c in list)
 			{
 				//Log.Debug("Spriting "+c);
 				var img = RenderCharSprite(c,font,dim);
-				//using (var fs = File.OpenWrite("sprite-"+((int)c)+".png")) {
-				//	img.SaveAsPng(fs);
-				//}
+				using (var fs = File.OpenWrite("sprite-"+((int)c)+".png")) {
+					img.SaveAsPng(fs);
+				}
 				CharSpriteMap.Add(c,img);
 				double avg = FindAverageGray(img);
 				//Log.Debug("Spriting avg = "+avg);
@@ -113,30 +111,38 @@ namespace ArtAscii
 			return dim;
 		}
 
-		static int FindMaxDim(char[] list,Font font)
+		static Size FindMaxDim(char[] list,Font font)
 		{
 			var ro = new RendererOptions(font);
-			float max = float.MinValue;
+			float maxw = float.MinValue;
+			float maxh = float.MinValue;
 			foreach(char c in list) {
 				SizeF size = TextMeasurer.Measure(c.ToString(),new RendererOptions(font));
-				if (size.Width > max) { max = size.Width; }
-				if (size.Height > max) { max = size.Height; }
+				if (size.Width > maxw) { maxw = size.Width; }
+				if (size.Height > maxh) { maxh = size.Height; }
 			}
-			return (int)Math.Ceiling(max);
+			return new Size(
+				(int)Math.Ceiling(maxw),
+				(int)Math.Ceiling(maxh)
+			);
 		}
 
-		static Image<Rgba32> RenderCharSprite(Char c,Font font, int dim)
+		static Image<Rgba32> RenderCharSprite(Char c,Font font, Size dim)
 		{
-			int workdim = 2 * dim;
-			var img = new Image<Rgba32>(Configuration.Default,workdim,workdim,Rgba32.Black);
+			const int workingscale = 2;
+			int w = dim.Width * workingscale;
+			int h = dim.Height * workingscale;
+			int x = w * (workingscale - 1)/4;
+			int y = h * (workingscale - 1)/4;
+			var img = new Image<Rgba32>(Configuration.Default,w,h,Rgba32.Black);
 			img.Mutate((ctx) => {
 				ctx.DrawText(
 					new TextGraphicsOptions(true) {
 						HorizontalAlignment = HorizontalAlignment.Center,
 						VerticalAlignment = VerticalAlignment.Center
-					},c.ToString(),font,Rgba32.White,new PointF(dim/2.0f,dim/2.0f)
+					},c.ToString(),font,Rgba32.White,new PointF(w/2.0f,h/2.0f)
 				);
-				ctx.Crop(new Rectangle(0,0,dim,dim)); //this is cropping the center.. why don't i have to use offsets ?
+				ctx.Crop(new Rectangle(x,y,w,h)); //this is cropping the center.. why don't i have to use offsets ?
 			});
 			return img;
 		}
@@ -215,25 +221,25 @@ namespace ArtAscii
 			return true;
 		}
 
-		static Image<Rgba32> RenderArtAsImage(int charW, int charH, int dim, double sgmax, double sgmin)
+		static Image<Rgba32> RenderArtAsImage(int charW, int charH, Size dim, double sgmax, double sgmin)
 		{
-			var img = new Image<Rgba32>(charW * dim,charH * dim);
+			var img = new Image<Rgba32>(charW * dim.Width,charH * dim.Height);
 
-			RenderArtClient(charW,charH,dim,sgmax,sgmin,(int x,int y,char c) => {
+			RenderArtClient(charW,charH,sgmax,sgmin,(int x,int y,char c) => {
 				var simg = CharSpriteMap[c];
 				img.Mutate(ctx => {
-					ctx.DrawImage(simg,1.0f,new Point(x * dim,y * dim));
+					ctx.DrawImage(simg,1.0f,new Point(x * dim.Width,y * dim.Height));
 				});
 			});
 
 			return img;
 		}
 
-		static string RenderArtAsText(int charW, int charH, int dim, double sgmax, double sgmin)
+		static string RenderArtAsText(int charW, int charH, Size dim, double sgmax, double sgmin)
 		{
 			char[,] arr = new char[charW,charH];
 
-			RenderArtClient(charW,charH,dim,sgmax,sgmin,(int x,int y,char c) => {
+			RenderArtClient(charW,charH,sgmax,sgmin,(int x,int y,char c) => {
 				arr[x,y] = c;
 			});
 
@@ -248,7 +254,7 @@ namespace ArtAscii
 		}
 
 		//TODO could just have this return a char[,] instead of using a callback. not sure which is better.
-		static void RenderArtClient(int charW, int charH, int dim, double sgmax, double sgmin, Action<int,int,char> visitor)
+		static void RenderArtClient(int charW, int charH, double sgmax, double sgmin, Action<int,int,char> visitor)
 		{
 			//TODO resize is the naive implementation - maybe also do a more advanced version
 			//humm.. actually i was thinking about grabbing each box of pixels, matching the size of the sprite
