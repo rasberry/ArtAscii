@@ -98,9 +98,11 @@ namespace ArtAscii
 			{
 				//Log.Debug("Spriting "+c);
 				var img = RenderCharSprite(c,font,dim);
-				using (var fs = File.OpenWrite("sprite-"+((int)c)+".png")) {
-					img.SaveAsPng(fs);
-				}
+				//#if DEBUG
+				//using (var fs = File.OpenWrite("sprite-"+((int)c)+".png")) {
+				//	img.SaveAsPng(fs);
+				//}
+				//#endif
 				CharSpriteMap.Add(c,img);
 				double avg = FindAverageGray(img);
 				//Log.Debug("Spriting avg = "+avg);
