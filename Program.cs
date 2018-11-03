@@ -54,9 +54,19 @@ namespace ArtAscii
 			int dim = CreateCharSprites(SelectedCharSet,SelectedFont, out smax,out smin);
 
 			//If the character render width/height are not set use the image dimensions
-			if (Options.CharWidth < 1 || Options.CharHeight < 1) {
+			if (Options.CharWidth < 1 && Options.CharHeight < 1) {
 				Options.CharWidth = SourceImage.Width / dim;
 				Options.CharHeight = SourceImage.Height / dim;
+			} else if (Options.CharWidth < 1) {
+				double ratio = (double)SourceImage.Width / SourceImage.Height;
+				Options.CharWidth = (int)(ratio * Options.CharHeight);
+			} else if (Options.CharHeight < 1) {
+				double ratio = (double)SourceImage.Height / SourceImage.Width;
+				Options.CharHeight = (int)(ratio * Options.CharWidth);
+			}
+			if (Options.CharWidth < 1 || Options.CharHeight < 1) {
+				Log.Error("Something went wrong with calculating the text width/height");
+				return;
 			}
 
 			if (Options.OutputText)
@@ -90,9 +100,9 @@ namespace ArtAscii
 			{
 				//Log.Debug("Spriting "+c);
 				var img = RenderCharSprite(c,font,dim);
-				using (var fs = File.OpenWrite("sprite-"+((int)c)+".png")) {
-					img.SaveAsPng(fs);
-				}
+				//using (var fs = File.OpenWrite("sprite-"+((int)c)+".png")) {
+				//	img.SaveAsPng(fs);
+				//}
 				CharSpriteMap.Add(c,img);
 				double avg = FindAverageGray(img);
 				//Log.Debug("Spriting avg = "+avg);
@@ -126,7 +136,7 @@ namespace ArtAscii
 						VerticalAlignment = VerticalAlignment.Center
 					},c.ToString(),font,Rgba32.White,new PointF(dim/2.0f,dim/2.0f)
 				);
-				ctx.Crop(new Rectangle(0,0,dim,dim)); //this is cropping the center.. now sure how
+				ctx.Crop(new Rectangle(0,0,dim,dim)); //this is cropping the center.. why don't i have to use offsets ?
 			});
 			return img;
 		}
@@ -139,18 +149,18 @@ namespace ArtAscii
 					return false;
 				}
 				SelectedFont = new Font(family,FontSize,Options.StyleOfFont);
-				Log.Debug("FontInfo: "
-					+"\n\tAscender\t"+SelectedFont.Ascender
-					+"\n\tBold\t"+SelectedFont.Bold
-					+"\n\tDescender\t"+SelectedFont.Descender
-					+"\n\tEmSize\t"+SelectedFont.EmSize
-					+"\n\tFamily.Name\t"+SelectedFont.Family.Name
-					+"\n\tItalic\t"+SelectedFont.Italic
-					+"\n\tLineGap\t"+SelectedFont.LineGap
-					+"\n\tLineHeight\t"+SelectedFont.LineHeight
-					+"\n\tName\t"+SelectedFont.Name
-					+"\n\tSize\t"+SelectedFont.Size
-				);
+				//Log.Debug("FontInfo: "
+				//	+"\n\tAscender\t"+SelectedFont.Ascender
+				//	+"\n\tBold\t"+SelectedFont.Bold
+				//	+"\n\tDescender\t"+SelectedFont.Descender
+				//	+"\n\tEmSize\t"+SelectedFont.EmSize
+				//	+"\n\tFamily.Name\t"+SelectedFont.Family.Name
+				//	+"\n\tItalic\t"+SelectedFont.Italic
+				//	+"\n\tLineGap\t"+SelectedFont.LineGap
+				//	+"\n\tLineHeight\t"+SelectedFont.LineHeight
+				//	+"\n\tName\t"+SelectedFont.Name
+				//	+"\n\tSize\t"+SelectedFont.Size
+				//);
 			}
 			else if (!String.IsNullOrWhiteSpace(Options.FontFile)) {
 				if (!File.Exists(Options.FontFile)) {
@@ -295,7 +305,7 @@ namespace ArtAscii
 			}
 
 			//do a binary search
-			int count = 1000;
+			int count = 1000; //just in case ;)
 			while(left <= right && --count > 0) {
 				//Log.Debug("FCI l="+left+" r="+right);
 				int mid = left + (right - left) / 2;
@@ -370,7 +380,9 @@ namespace ArtAscii
 			}
 		}
 
+		//char to sprite map
 		static Dictionary<char,Image<Rgba32>> CharSpriteMap = new Dictionary<char,Image<Rgba32>>();
+		//gray to char map
 		static SortedList<double,char> SpriteGrayMap = new SortedList<double,char>();
 		static Image<Rgba32> SourceImage = null;
 		static char[] SelectedCharSet = null;
