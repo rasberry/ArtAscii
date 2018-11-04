@@ -20,6 +20,9 @@ namespace ArtAscii
 			= could also allow a single 'source' image that gets cut up and used as the sprites
 			= hummm.. so if you used a single image as both input and output
 			 - it would just be puzzling the pieces back together as they were ?
+		= TODO RenderArt resize is the naive implementation - maybe also do a more advanced version
+			humm.. actually i was thinking about grabbing each box of pixels, matching the size of the sprite
+			then finding the one that matches the closest (using diff or something)
 	*/
 	static class Program
 	{
@@ -225,7 +228,14 @@ namespace ArtAscii
 		{
 			var img = new Image<Rgba32>(charW * dim.Width,charH * dim.Height);
 
-			RenderArtClient(charW,charH,sgmax,sgmin,(int x,int y,char c) => {
+			//RenderArtClient(charW,charH,sgmax,sgmin,(int x,int y,char c) => {
+			//	var simg = CharSpriteMap[c];
+			//	img.Mutate(ctx => {
+			//		ctx.DrawImage(simg,1.0f,new Point(x * dim.Width,y * dim.Height));
+			//	});
+			//});
+
+			RenderArtClientDiff(charW,charH,dim,(int x,int y,char c) => {
 				var simg = CharSpriteMap[c];
 				img.Mutate(ctx => {
 					ctx.DrawImage(simg,1.0f,new Point(x * dim.Width,y * dim.Height));
@@ -256,9 +266,6 @@ namespace ArtAscii
 		//TODO could just have this return a char[,] instead of using a callback. not sure which is better.
 		static void RenderArtClient(int charW, int charH, double sgmax, double sgmin, Action<int,int,char> visitor)
 		{
-			//TODO resize is the naive implementation - maybe also do a more advanced version
-			//humm.. actually i was thinking about grabbing each box of pixels, matching the size of the sprite
-			// then finding the one that matches the closest (using diff or something)
 			SourceImage.Mutate((ctx) => {
 				ctx.Resize(new ResizeOptions {
 					Mode = ResizeMode.Stretch,
@@ -338,6 +345,49 @@ namespace ArtAscii
 			//Log.Debug("final = "+final);
 			return final;
 
+		}
+
+		static void RenderArtClientDiff(int charW, int charH, Size dim, Action<int,int,char> visitor)
+		{
+			SourceImage.Mutate(ctx => {
+				ctx.Resize(new ResizeOptions {
+					Mode = ResizeMode.Stretch,
+					Sampler = KnownResamplers.Lanczos3,
+					Size = new Size(charW * dim.Width, charH * dim.Height)
+				});
+			});
+
+			for(int y=0; y<charH; y++)
+			{
+				Log.Debug("y = "+y);
+				for (int x=0; x<charW; x++)
+				{
+					var srcRect = SourceImage.Clone(ctx => {
+						ctx.Crop(new Rectangle(
+							x * dim.Width,y * dim.Height,
+							dim.Width,dim.Height
+						));
+					});
+
+					double ming = double.MaxValue;
+					char minc = ' ';
+					foreach(char c in SelectedCharSet)
+					{
+						var sprite = CharSpriteMap[c];
+						var clone = srcRect.Clone();
+						clone.Mutate(ctx => {
+							ctx.HistogramEqualization();
+							ctx.DrawImage(sprite,PixelBlenderMode.Subtract,0.5f);
+						});
+						double g = FindAverageGray(clone);
+						if (g < ming) {
+							ming = g;
+							minc = c;
+						}
+					}
+					visitor(x,y,minc);
+				}
+			}
 		}
 
 		static void FindGrayMinMax(Image<Rgba32> img,out double min,out double max)
