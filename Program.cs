@@ -262,19 +262,19 @@ namespace ArtAscii
 		{
 			var img = new Image<Rgba32>(charW * dim.Width,charH * dim.Height);
 
-			//RenderArtClient(charW,charH,sgmax,sgmin,(int x,int y,char c) => {
-			//	var simg = CharSpriteMap[c];
-			//	img.Mutate(ctx => {
-			//		ctx.DrawImage(simg,1.0f,new Point(x * dim.Width,y * dim.Height));
-			//	});
-			//});
-
-			RenderArtClientDiff(charW,charH,dim,(int x,int y,char c) => {
+			RenderArtClient(charW,charH,sgmax,sgmin,(int x,int y,char c) => {
 				var simg = CharSpriteMap[c];
 				img.Mutate(ctx => {
 					ctx.DrawImage(simg,1.0f,new Point(x * dim.Width,y * dim.Height));
 				});
 			});
+
+			//RenderArtClientDiff(charW,charH,dim,(int x,int y,char c) => {
+			//	var simg = CharSpriteMap[c];
+			//	img.Mutate(ctx => {
+			//		ctx.DrawImage(simg,1.0f,new Point(x * dim.Width,y * dim.Height));
+			//	});
+			//});
 
 			return img;
 		}
