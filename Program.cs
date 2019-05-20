@@ -88,6 +88,14 @@ namespace ArtAscii
 			}
 		}
 
+		/// <summary>
+		/// Generate an image for each font character
+		/// </summary>
+		/// <param name="list">input list of characters</param>
+		/// <param name="font">the font to use</param>
+		/// <param name="max">output the max rendered char gray value found</param>
+		/// <param name="min">output the min rendered char gray value found</param>
+		/// <returns>maximum dimensions among the rendered chars</returns>
 		static Size CreateCharSprites(char[] list,Font font, out double max, out double min)
 		{
 			max = double.MinValue;
@@ -114,6 +122,12 @@ namespace ArtAscii
 			return dim;
 		}
 
+		/// <summary>
+		/// finds the maximum dimensions for the given set of characters
+		/// </summary>
+		/// <param name="list">list of characters</param>
+		/// <param name="font">font for rendering</param>
+		/// <returns>maximum dimensions for the given set of characer</returns>
 		static Size FindMaxDim(char[] list,Font font)
 		{
 			var ro = new RendererOptions(font);
@@ -130,9 +144,16 @@ namespace ArtAscii
 			);
 		}
 
+		/// <summary>
+		/// render the given character to an image
+		/// </summary>
+		/// <param name="c">character to render</param>
+		/// <param name="font">font to use for rendering</param>
+		/// <param name="dim">desired dimension of image</param>
+		/// <returns>an image with the rendered character</returns>
 		static Image<Rgba32> RenderCharSprite(Char c,Font font, Size dim)
 		{
-			const int workingscale = 2;
+			const int workingscale = 2; //TODO make this configuratble
 			int w = Math.Max(4,dim.Width * workingscale);
 			int h = Math.Max(4,dim.Height * workingscale);
 			int x = (w - dim.Width)/2;
@@ -150,6 +171,10 @@ namespace ArtAscii
 			return img;
 		}
 
+		/// <summary>
+		/// Loads necesarry resouces for rendering
+		/// </summary>
+		/// <returns>true loading succeeded</returns>
 		static bool LoadResources()
 		{
 			if (!String.IsNullOrWhiteSpace(Options.SystemFont)) {
@@ -224,6 +249,15 @@ namespace ArtAscii
 			return true;
 		}
 
+		/// <summary>
+		/// processes an image into an image made of character sprites
+		/// </summary>
+		/// <param name="charW">width of image in characters</param>
+		/// <param name="charH">height of image in characters</param>
+		/// <param name="dim">size of source image</param>
+		/// <param name="sgmax">character gray max</param>
+		/// <param name="sgmin">character gray min</param>
+		/// <returns></returns>
 		static Image<Rgba32> RenderArtAsImage(int charW, int charH, Size dim, double sgmax, double sgmin)
 		{
 			var img = new Image<Rgba32>(charW * dim.Width,charH * dim.Height);
@@ -245,6 +279,15 @@ namespace ArtAscii
 			return img;
 		}
 
+		/// <summary>
+		/// Trasforms the source image to a text string
+		/// </summary>
+		/// <param name="charW">width of ouput in characters</param>
+		/// <param name="charH">height of output in characters</param>
+		/// <param name="dim"></param>
+		/// <param name="sgmax"></param>
+		/// <param name="sgmin"></param>
+		/// <returns></returns>
 		static string RenderArtAsText(int charW, int charH, Size dim, double sgmax, double sgmin)
 		{
 			char[,] arr = new char[charW,charH];
@@ -264,6 +307,14 @@ namespace ArtAscii
 		}
 
 		//TODO could just have this return a char[,] instead of using a callback. not sure which is better.
+		/// <summary>
+		/// Converts the source image to characters
+		/// </summary>
+		/// <param name="charW">width of output in characters</param>
+		/// <param name="charH">width of output in characters</param>
+		/// <param name="sgmax">char sprite gray max</param>
+		/// <param name="sgmin">char sprite gray min</param>
+		/// <param name="visitor">call back that is given the x,y coordinates along with the character to render</param>
 		static void RenderArtClient(int charW, int charH, double sgmax, double sgmin, Action<int,int,char> visitor)
 		{
 			SourceImage.Mutate((ctx) => {
@@ -287,6 +338,15 @@ namespace ArtAscii
 			}
 		}
 
+		/// <summary>
+		/// Maps the given gray amount to an appropriate character
+		/// </summary>
+		/// <param name="g">input gray amount</param>
+		/// <param name="gmax">source image gray maximum</param>
+		/// <param name="gmin">source image gray minimum</param>
+		/// <param name="sgmax">char sprite max gray</param>
+		/// <param name="sgmin">char sprite min gray</param>
+		/// <returns>character to use</returns>
 		static char MapGrayToChar(double g, double gmax,double gmin, double sgmax, double sgmin)
 		{
 			//g is the source gray index
@@ -301,6 +361,12 @@ namespace ArtAscii
 			return SpriteGrayMap[SpriteGrayMap.Keys[index]];
 		}
 
+		/// <summary>
+		/// find the closest number from a list
+		/// </summary>
+		/// <param name="list">list of values sorted smallest to largest</param>
+		/// <param name="target">value to find</param>
+		/// <returns>index of closest value</returns>
 		static int FindClosestIndex(IList<double> list, double target)
 		{
 			//for(int i=0; i<list.Count; i++) {
@@ -347,6 +413,13 @@ namespace ArtAscii
 
 		}
 
+		/// <summary>
+		/// process the source image into characters
+		/// </summary>
+		/// <param name="charW">width of image in characters</param>
+		/// <param name="charH">height of image in characters</param>
+		/// <param name="dim">dimensions of source image</param>
+		/// <param name="visitor">call back that is given the x,y coordinates along with the character to render</param>
 		static void RenderArtClientDiff(int charW, int charH, Size dim, Action<int,int,char> visitor)
 		{
 			SourceImage.Mutate(ctx => {
@@ -390,6 +463,12 @@ namespace ArtAscii
 			}
 		}
 
+		/// <summary>
+		/// determine the min and max grays for an image
+		/// </summary>
+		/// <param name="img">input image</param>
+		/// <param name="min">output min gray</param>
+		/// <param name="max">output max gray</param>
 		static void FindGrayMinMax(Image<Rgba32> img,out double min,out double max)
 		{
 			max = double.MinValue;
