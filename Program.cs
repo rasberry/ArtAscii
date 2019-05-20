@@ -488,7 +488,8 @@ namespace ArtAscii
 		static double ToGray(Rgba32 color)
 		{
 			//TODO maybe incorporate alpha ?
-			return color.R * 0.2126 + color.G * 0.7152 + color.B * 0.0722;
+			double gray = color.R * 0.2126 + color.G * 0.7152 + color.B * 0.0722;
+			return gray * color.A / 255.0;
 		}
 
 		static double FindAverageGray(Image<Rgba32> img)
