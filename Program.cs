@@ -248,9 +248,7 @@ namespace ArtAscii
 		/// <param name="charW">width of image in characters</param>
 		/// <param name="charH">height of image in characters</param>
 		/// <param name="dim">size of source image</param>
-		/// <param name="sgmax">character gray max</param>
-		/// <param name="sgmin">character gray min</param>
-		/// <returns></returns>
+		/// <returns>output image</returns>
 		static Image<Rgba32> RenderArtAsImage(int charW, int charH, Size dim)
 		{
 			var img = new Image<Rgba32>(charW * dim.Width,charH * dim.Height);
@@ -284,8 +282,8 @@ namespace ArtAscii
 		/// </summary>
 		/// <param name="charW">width of ouput in characters</param>
 		/// <param name="charH">height of output in characters</param>
-		/// <param name="dim"></param>
-		/// <returns></returns>
+		/// <param name="dim">size of source image</param>
+		/// <returns>output text</returns>
 		static string RenderArtAsText(int charW, int charH, Size dim)
 		{
 			char[,] arr = new char[charW,charH];
@@ -310,19 +308,18 @@ namespace ArtAscii
 		/// </summary>
 		/// <param name="charW">width of output in characters</param>
 		/// <param name="charH">width of output in characters</param>
-		/// <param name="sgmax">char sprite gray max</param>
-		/// <param name="sgmin">char sprite gray min</param>
 		/// <param name="visitor">call back that is given the x,y coordinates along with the index of the character to render</param>
 		static void RenderArtClient(int charW, int charH, Action<int,int,int> visitor)
 		{
-			var picker = new SimplePicker(SourceImage,SpriteList,charW,charH);
-
-			for(int y=0; y<charH; y++)
+			using (var picker = new SimplePicker(SourceImage,SpriteList,charW,charH))
 			{
-				for(int x=0; x<charW; x++)
+				for(int y=0; y<charH; y++)
 				{
-					int index = picker.PickSprite(x,y);
-					visitor(x,y,index);
+					for(int x=0; x<charW; x++)
+					{
+						int index = picker.PickSprite(x,y);
+						visitor(x,y,index);
+					}
 				}
 			}
 		}

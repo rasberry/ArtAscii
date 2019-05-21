@@ -8,7 +8,7 @@ using SixLabors.Primitives;
 
 namespace ArtAscii
 {
-	public interface ISpritePicker
+	public interface ISpritePicker : IDisposable
 	{
 		IList<Image<Rgba32>> SpriteList { get; }
 		Image<Rgba32> SourceImage { get; }
@@ -62,6 +62,14 @@ namespace ArtAscii
 			int index = FindClosestIndex(SpriteGrayMap, sg);
 			//Log.Debug("index = "+index+" "+SpriteGrayMap.Count);
 			return SpriteGrayMap[index].Index;
+		}
+
+		public void Dispose()
+		{
+			if (SourceImage != null) {
+				SourceImage.Dispose();
+				SourceImage = null;
+			}
 		}
 
 		static int FindClosestIndex(IList<SpriteInfo> list, double target)
