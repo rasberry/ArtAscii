@@ -103,8 +103,9 @@ namespace ArtAscii
 			Size dim = FindMaxDim(list,font);
 			Log.Debug("dim = ["+dim.Width+"x"+dim.Height+"]");
 
-			foreach(char c in list)
+			for(int ci=0; ci<list.Length; ci++)
 			{
+				char c = list[ci];
 				//Log.Debug("Spriting "+c);
 				var img = RenderCharSprite(c,font,dim);
 				//#if DEBUG
@@ -112,8 +113,9 @@ namespace ArtAscii
 				//	img.SaveAsPng(fs);
 				//}
 				//#endif
-				CharSpriteMap.Add(c,img);
-				double avg = FindAverageGray(img);
+				SpriteList.Add(img);
+				CharSpriteMap.Add(c,ci);
+				double avg = Helpers.FindAverageGray(img);
 				//Log.Debug("Spriting avg = "+avg);
 				SpriteGrayMap.TryAdd(avg,c);
 				if (avg > max) { max = avg; }
@@ -262,19 +264,26 @@ namespace ArtAscii
 		{
 			var img = new Image<Rgba32>(charW * dim.Width,charH * dim.Height);
 
-			//RenderArtClient(charW,charH,sgmax,sgmin,(int x,int y,char c) => {
-			//	var simg = CharSpriteMap[c];
+			RenderArtClient(charW,charH,sgmax,sgmin,(int x,int y,char c) => {
+				var simg = SpriteList[CharSpriteMap[c]];
+				img.Mutate(ctx => {
+					ctx.DrawImage(simg,1.0f,new Point(x * dim.Width,y * dim.Height));
+				});
+			});
+
+			//RenderArtClientAlt(charW,charH,sgmax,sgmin,(int x,int y,char c) => {
+			//	var simg = SpriteList[CharSpriteMap[c]];
 			//	img.Mutate(ctx => {
 			//		ctx.DrawImage(simg,1.0f,new Point(x * dim.Width,y * dim.Height));
 			//	});
 			//});
 
-			RenderArtClientDiff(charW,charH,dim,(int x,int y,char c) => {
-				var simg = CharSpriteMap[c];
-				img.Mutate(ctx => {
-					ctx.DrawImage(simg,1.0f,new Point(x * dim.Width,y * dim.Height));
-				});
-			});
+			//RenderArtClientDiff(charW,charH,dim,(int x,int y,char c) => {
+			//	var simg = CharSpriteMap[c];
+			//	img.Mutate(ctx => {
+			//		ctx.DrawImage(simg,1.0f,new Point(x * dim.Width,y * dim.Height));
+			//	});
+			//});
 
 			return img;
 		}
@@ -317,22 +326,38 @@ namespace ArtAscii
 		/// <param name="visitor">call back that is given the x,y coordinates along with the character to render</param>
 		static void RenderArtClient(int charW, int charH, double sgmax, double sgmin, Action<int,int,char> visitor)
 		{
+			var picker = new SimplePicker(SourceImage,SpriteList,charW,charH);
+
+			for(int y=0; y<charH; y++)
+			{
+				for(int x=0; x<charW; x++)
+				{
+					int index = picker.PickSprite(x,y);
+					char c = SelectedCharSet[index];
+					visitor(x,y,c);
+				}
+			}
+		}
+
+		static void RenderArtClientAlt(int charW, int charH, double sgmax, double sgmin, Action<int,int,char> visitor)
+		{
+			const int GridMultiple = 1;
 			SourceImage.Mutate((ctx) => {
 				ctx.Resize(new ResizeOptions {
 					Mode = ResizeMode.Stretch,
 					Sampler = KnownResamplers.Lanczos3,
-					Size = new Size(charW,charH)
+					Size = new Size(charW * GridMultiple,charH * GridMultiple)
 				});
 			});
 
-			FindGrayMinMax(SourceImage,out double gmin, out double gmax);
+			Helpers.FindGrayMinMax(SourceImage,out double gmin, out double gmax);
 
 			for(int y=0; y<charH; y++)
 			{
 				for(int x=0; x<charW; x++)
 				{
 					var sc = SourceImage.GetPixelRowSpan(y)[x];
-					var c = MapGrayToChar(ToGray(sc),gmax,gmin,sgmax,sgmin);
+					var c = MapGrayToChar(Helpers.ToGray(sc),gmax,gmin,sgmax,sgmin);
 					visitor(x,y,c);
 				}
 			}
@@ -357,8 +382,9 @@ namespace ArtAscii
 
 			//find closest sprite gray to sg
 			int index = FindClosestIndex(SpriteGrayMap.Keys, sg);
-			//Log.Debug("index = "+index+" "+SpriteGrayMap.Count);
-			return SpriteGrayMap[SpriteGrayMap.Keys[index]];
+			Log.Debug("index = "+index+" "+SpriteGrayMap.Count);
+			return SelectedCharSet[index];
+//			return SpriteGrayMap[SpriteGrayMap.Keys[index]];
 		}
 
 		/// <summary>
@@ -446,13 +472,13 @@ namespace ArtAscii
 					char minc = ' ';
 					foreach(char c in SelectedCharSet)
 					{
-						var sprite = CharSpriteMap[c];
+						var sprite = SpriteList[CharSpriteMap[c]];
 						var clone = srcRect.Clone();
 						clone.Mutate(ctx => {
 							ctx.HistogramEqualization();
 							ctx.DrawImage(sprite,PixelBlenderMode.Subtract,0.5f);
 						});
-						double g = FindAverageGray(clone);
+						double g = Helpers.FindAverageGray(clone);
 						if (g < ming) {
 							ming = g;
 							minc = c;
@@ -463,52 +489,11 @@ namespace ArtAscii
 			}
 		}
 
-		/// <summary>
-		/// determine the min and max grays for an image
-		/// </summary>
-		/// <param name="img">input image</param>
-		/// <param name="min">output min gray</param>
-		/// <param name="max">output max gray</param>
-		static void FindGrayMinMax(Image<Rgba32> img,out double min,out double max)
-		{
-			max = double.MinValue;
-			min = double.MaxValue;
-			int w = img.Width;
-			int h = img.Height;
-			for(int y=0; y<h; y++) {
-				var row = img.GetPixelRowSpan(y);
-				for(int x=0; x<w; x++) {
-					var c = row[x];
-					double g = ToGray(c);
-					if (g > max) { max = g; }
-					if (g < min) { min = g; }
-				}
-			}
-		}
-		static double ToGray(Rgba32 color)
-		{
-			//TODO maybe incorporate alpha ?
-			double gray = color.R * 0.2126 + color.G * 0.7152 + color.B * 0.0722;
-			return gray * color.A / 255.0;
-		}
-
-		static double FindAverageGray(Image<Rgba32> img)
-		{
-			var avgImg = img.Clone((ctx) => {
-				ctx.Resize(new ResizeOptions {
-					Mode = ResizeMode.Stretch,
-					Sampler = KnownResamplers.Lanczos3,
-					Size = new Size(1,1)
-				});
-			});
-			var span = avgImg.GetPixelSpan();
-			return ToGray(span[0]);
-		}
 		static void Dispose()
 		{
 			if (CharSpriteMap != null) {
-				foreach(var kvp in CharSpriteMap) {
-					kvp.Value?.Dispose();
+				foreach(var s in SpriteList) {
+					if (s != null) { s.Dispose(); }
 				}
 			}
 			if (SourceImage != null) {
@@ -517,10 +502,11 @@ namespace ArtAscii
 		}
 
 		//char to sprite map
-		static Dictionary<char,Image<Rgba32>> CharSpriteMap = new Dictionary<char,Image<Rgba32>>();
+		static Dictionary<char,int> CharSpriteMap = new Dictionary<char,int>();
 		//gray to char map
 		static SortedList<double,char> SpriteGrayMap = new SortedList<double,char>();
 		static Image<Rgba32> SourceImage = null;
+		static List<Image<Rgba32>> SpriteList = new List<Image<Rgba32>>();
 		static char[] SelectedCharSet = null;
 		static Font SelectedFont = null;
 	}
