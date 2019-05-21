@@ -60,7 +60,7 @@ namespace ArtAscii
 
 			//find closest sprite gray to sg
 			int index = FindClosestIndex(SpriteGrayMap, sg);
-			Log.Debug("index = "+index+" "+SpriteGrayMap.Count);
+			//Log.Debug("index = "+index+" "+SpriteGrayMap.Count);
 			return SpriteGrayMap[index].Index;
 		}
 
@@ -119,9 +119,6 @@ namespace ArtAscii
 				//SpriteGrayMap.TryAdd(avg,s);
 			}
 			SpriteGrayMap.Sort(new SpriteInfo());
-			foreach(var s in SpriteGrayMap) {
-				Log.Debug("s: "+s.Gray+"\t"+s.Index);
-			}
 		}
 
 		void FindSpriteGrayRange()
