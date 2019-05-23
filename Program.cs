@@ -329,6 +329,11 @@ namespace ArtAscii
 			if (SourceImage != null) {
 				SourceImage.Dispose();
 			}
+			if (SpriteList != null) {
+				foreach(var img in SpriteList) {
+					if (img != null) { img.Dispose(); }
+				}
+			}
 		}
 
 		static Image<Rgba32> SourceImage = null;
