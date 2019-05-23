@@ -49,8 +49,7 @@ namespace ArtAscii
 				return;
 			}
 
-			double smax, smin;
-			Size dim = CreateCharSprites(SelectedCharSet,SelectedFont, out smax,out smin);
+			Size dim = CreateCharSprites(SelectedCharSet,SelectedFont);
 
 			//If the character render width/height are not set use the image dimensions
 			if (Options.CharWidth < 1 && Options.CharHeight < 1) {
@@ -70,7 +69,7 @@ namespace ArtAscii
 
 			if (Options.OutputText)
 			{
-				string txt = RenderArtAsText(Options.CharWidth,Options.CharHeight, dim, smax, smin);
+				string txt = RenderArtAsText(Options.CharWidth,Options.CharHeight, dim);
 				if (txt == null) { return; }
 				using(var fs = File.Open(Options.OutputName,FileMode.Create,FileAccess.ReadWrite,FileShare.Read)) {
 					var buff = Encoding.UTF8.GetBytes(txt);
@@ -79,7 +78,7 @@ namespace ArtAscii
 			}
 			else
 			{
-				using(var img = RenderArtAsImage(Options.CharWidth,Options.CharHeight, dim, smax, smin)) {
+				using(var img = RenderArtAsImage(Options.CharWidth,Options.CharHeight, dim)) {
 					if (img == null) { return; }
 					using(var fs = File.Open(Options.OutputName,FileMode.Create,FileAccess.ReadWrite,FileShare.Read)) {
 						img.SaveAsPng(fs);
@@ -93,18 +92,15 @@ namespace ArtAscii
 		/// </summary>
 		/// <param name="list">input list of characters</param>
 		/// <param name="font">the font to use</param>
-		/// <param name="max">output the max rendered char gray value found</param>
-		/// <param name="min">output the min rendered char gray value found</param>
 		/// <returns>maximum dimensions among the rendered chars</returns>
-		static Size CreateCharSprites(char[] list,Font font, out double max, out double min)
+		static Size CreateCharSprites(char[] list,Font font)
 		{
-			max = double.MinValue;
-			min = double.MaxValue;
 			Size dim = FindMaxDim(list,font);
 			Log.Debug("dim = ["+dim.Width+"x"+dim.Height+"]");
 
-			foreach(char c in list)
+			for(int ci=0; ci<list.Length; ci++)
 			{
+				char c = list[ci];
 				//Log.Debug("Spriting "+c);
 				var img = RenderCharSprite(c,font,dim);
 				//#if DEBUG
@@ -112,12 +108,9 @@ namespace ArtAscii
 				//	img.SaveAsPng(fs);
 				//}
 				//#endif
-				CharSpriteMap.Add(c,img);
-				double avg = FindAverageGray(img);
+				SpriteList.Add(img);
+				double avg = Helpers.FindAverageGray(img);
 				//Log.Debug("Spriting avg = "+avg);
-				SpriteGrayMap.TryAdd(avg,c);
-				if (avg > max) { max = avg; }
-				if (avg < min) { min = avg; }
 			}
 			return dim;
 		}
@@ -255,19 +248,31 @@ namespace ArtAscii
 		/// <param name="charW">width of image in characters</param>
 		/// <param name="charH">height of image in characters</param>
 		/// <param name="dim">size of source image</param>
-		/// <param name="sgmax">character gray max</param>
-		/// <param name="sgmin">character gray min</param>
-		/// <returns></returns>
-		static Image<Rgba32> RenderArtAsImage(int charW, int charH, Size dim, double sgmax, double sgmin)
+		/// <returns>output image</returns>
+		static Image<Rgba32> RenderArtAsImage(int charW, int charH, Size dim)
 		{
 			var img = new Image<Rgba32>(charW * dim.Width,charH * dim.Height);
 
-			RenderArtClient(charW,charH,sgmax,sgmin,(int x,int y,char c) => {
-				var simg = CharSpriteMap[c];
+			RenderArtClient(charW,charH,(int x,int y,int ci) => {
+				var simg = SpriteList[ci];
 				img.Mutate(ctx => {
 					ctx.DrawImage(simg,1.0f,new Point(x * dim.Width,y * dim.Height));
 				});
 			});
+
+			//RenderArtClientAlt(charW,charH,sgmax,sgmin,(int x,int y,char c) => {
+			//	var simg = SpriteList[CharSpriteMap[c]];
+			//	img.Mutate(ctx => {
+			//		ctx.DrawImage(simg,1.0f,new Point(x * dim.Width,y * dim.Height));
+			//	});
+			//});
+
+			//RenderArtClientDiff(charW,charH,dim,(int x,int y,char c) => {
+			//	var simg = CharSpriteMap[c];
+			//	img.Mutate(ctx => {
+			//		ctx.DrawImage(simg,1.0f,new Point(x * dim.Width,y * dim.Height));
+			//	});
+			//});
 
 			//RenderArtClientDiff(charW,charH,dim,(int x,int y,char c) => {
 			//	var simg = CharSpriteMap[c];
@@ -284,16 +289,14 @@ namespace ArtAscii
 		/// </summary>
 		/// <param name="charW">width of ouput in characters</param>
 		/// <param name="charH">height of output in characters</param>
-		/// <param name="dim"></param>
-		/// <param name="sgmax"></param>
-		/// <param name="sgmin"></param>
-		/// <returns></returns>
-		static string RenderArtAsText(int charW, int charH, Size dim, double sgmax, double sgmin)
+		/// <param name="dim">size of source image</param>
+		/// <returns>output text</returns>
+		static string RenderArtAsText(int charW, int charH, Size dim)
 		{
 			char[,] arr = new char[charW,charH];
 
-			RenderArtClient(charW,charH,sgmax,sgmin,(int x,int y,char c) => {
-				arr[x,y] = c;
+			RenderArtClient(charW,charH,(int x,int y,int ci) => {
+				arr[x,y] = SelectedCharSet[ci];
 			});
 
 			StringBuilder sb = new StringBuilder();
@@ -312,215 +315,36 @@ namespace ArtAscii
 		/// </summary>
 		/// <param name="charW">width of output in characters</param>
 		/// <param name="charH">width of output in characters</param>
-		/// <param name="sgmax">char sprite gray max</param>
-		/// <param name="sgmin">char sprite gray min</param>
-		/// <param name="visitor">call back that is given the x,y coordinates along with the character to render</param>
-		static void RenderArtClient(int charW, int charH, double sgmax, double sgmin, Action<int,int,char> visitor)
+		/// <param name="visitor">call back that is given the x,y coordinates along with the index of the character to render</param>
+		static void RenderArtClient(int charW, int charH, Action<int,int,int> visitor)
 		{
-			SourceImage.Mutate((ctx) => {
-				ctx.Resize(new ResizeOptions {
-					Mode = ResizeMode.Stretch,
-					Sampler = KnownResamplers.Lanczos3,
-					Size = new Size(charW,charH)
-				});
-			});
-
-			FindGrayMinMax(SourceImage,out double gmin, out double gmax);
-
-			for(int y=0; y<charH; y++)
+			using (var picker = new SimplePicker(SourceImage,SpriteList,charW,charH))
 			{
-				for(int x=0; x<charW; x++)
+				for(int y=0; y<charH; y++)
 				{
-					var sc = SourceImage.GetPixelRowSpan(y)[x];
-					var c = MapGrayToChar(ToGray(sc),gmax,gmin,sgmax,sgmin);
-					visitor(x,y,c);
-				}
-			}
-		}
-
-		/// <summary>
-		/// Maps the given gray amount to an appropriate character
-		/// </summary>
-		/// <param name="g">input gray amount</param>
-		/// <param name="gmax">source image gray maximum</param>
-		/// <param name="gmin">source image gray minimum</param>
-		/// <param name="sgmax">char sprite max gray</param>
-		/// <param name="sgmin">char sprite min gray</param>
-		/// <returns>character to use</returns>
-		static char MapGrayToChar(double g, double gmax,double gmin, double sgmax, double sgmin)
-		{
-			//g is the source gray index
-			//gmin and gmax are source range of gray
-			//sgmax, sgmin are the sprite range of gray
-			double sg = (sgmax - sgmin) / (gmax - gmin) * (g - gmin) + sgmin;
-			//Log.Debug(sg+" = ("+sgmax+" - "+sgmin+") / ("+gmax+" - "+gmin+") * "+g);
-
-			//find closest sprite gray to sg
-			int index = FindClosestIndex(SpriteGrayMap.Keys, sg);
-			//Log.Debug("index = "+index+" "+SpriteGrayMap.Count);
-			return SpriteGrayMap[SpriteGrayMap.Keys[index]];
-		}
-
-		/// <summary>
-		/// find the closest number from a list
-		/// </summary>
-		/// <param name="list">list of values sorted smallest to largest</param>
-		/// <param name="target">value to find</param>
-		/// <returns>index of closest value</returns>
-		static int FindClosestIndex(IList<double> list, double target)
-		{
-			//for(int i=0; i<list.Count; i++) {
-			//	Log.Debug(i+" = "+list[i]);
-			//}
-			int len = list.Count;
-			//Log.Debug("FCI len = "+len);
-			int left = 0, right = len - 1;
-			if (target.CompareTo(list[0]) < 0) {
-				//Log.Debug("FCI super left "+list[0]+" - "+target);
-				return 0;
-			} else if (target.CompareTo(list[right]) > 0) {
-				//Log.Debug("FCI super right "+list[right]+" - "+target);
-				return right;
-			}
-
-			//do a binary search
-			int count = 1000; //just in case ;)
-			while(left <= right && --count > 0) {
-				//Log.Debug("FCI l="+left+" r="+right);
-				int mid = left + (right - left) / 2;
-				double num = list[mid];
-				int comp = num.CompareTo(target);
-				//Log.Debug("FCI "+target+" comp "+num+" = "+comp);
-				if (comp == 0) {
-					//Log.Debug("FCI mid");
-					return mid;
-				}
-				if (comp < 0) {
-					//Log.Debug("FCI left");
-					left = mid + 1;
-				} else {
-					//Log.Debug("FCI right");
-					right = mid - 1;
-				}
-			}
-
-			//round to the nearest whole index
-			if (left >= len - 1) { left = len - 2; }
-			double vmid = list[left+1] - list[left];
-			int final = target > vmid ? left + 1 : left;
-			//Log.Debug("final = "+final);
-			return final;
-
-		}
-
-		/// <summary>
-		/// process the source image into characters
-		/// </summary>
-		/// <param name="charW">width of image in characters</param>
-		/// <param name="charH">height of image in characters</param>
-		/// <param name="dim">dimensions of source image</param>
-		/// <param name="visitor">call back that is given the x,y coordinates along with the character to render</param>
-		static void RenderArtClientDiff(int charW, int charH, Size dim, Action<int,int,char> visitor)
-		{
-			SourceImage.Mutate(ctx => {
-				ctx.Resize(new ResizeOptions {
-					Mode = ResizeMode.Stretch,
-					Sampler = KnownResamplers.Lanczos3,
-					Size = new Size(charW * dim.Width, charH * dim.Height)
-				});
-			});
-
-			for(int y=0; y<charH; y++)
-			{
-				Log.Debug("y = "+y);
-				for (int x=0; x<charW; x++)
-				{
-					var srcRect = SourceImage.Clone(ctx => {
-						ctx.Crop(new Rectangle(
-							x * dim.Width,y * dim.Height,
-							dim.Width,dim.Height
-						));
-					});
-
-					double ming = double.MaxValue;
-					char minc = ' ';
-					foreach(char c in SelectedCharSet)
+					for(int x=0; x<charW; x++)
 					{
-						var sprite = CharSpriteMap[c];
-						var clone = srcRect.Clone();
-						clone.Mutate(ctx => {
-							ctx.HistogramEqualization();
-							ctx.DrawImage(sprite,PixelBlenderMode.Subtract,0.5f);
-						});
-						double g = FindAverageGray(clone);
-						if (g < ming) {
-							ming = g;
-							minc = c;
-						}
+						int index = picker.PickSprite(x,y);
+						visitor(x,y,index);
 					}
-					visitor(x,y,minc);
 				}
 			}
 		}
 
-		/// <summary>
-		/// determine the min and max grays for an image
-		/// </summary>
-		/// <param name="img">input image</param>
-		/// <param name="min">output min gray</param>
-		/// <param name="max">output max gray</param>
-		static void FindGrayMinMax(Image<Rgba32> img,out double min,out double max)
-		{
-			max = double.MinValue;
-			min = double.MaxValue;
-			int w = img.Width;
-			int h = img.Height;
-			for(int y=0; y<h; y++) {
-				var row = img.GetPixelRowSpan(y);
-				for(int x=0; x<w; x++) {
-					var c = row[x];
-					double g = ToGray(c);
-					if (g > max) { max = g; }
-					if (g < min) { min = g; }
-				}
-			}
-		}
-		static double ToGray(Rgba32 color)
-		{
-			//TODO maybe incorporate alpha ?
-			double gray = color.R * 0.2126 + color.G * 0.7152 + color.B * 0.0722;
-			return gray * color.A / 255.0;
-		}
-
-		static double FindAverageGray(Image<Rgba32> img)
-		{
-			var avgImg = img.Clone((ctx) => {
-				ctx.Resize(new ResizeOptions {
-					Mode = ResizeMode.Stretch,
-					Sampler = KnownResamplers.Lanczos3,
-					Size = new Size(1,1)
-				});
-			});
-			var span = avgImg.GetPixelSpan();
-			return ToGray(span[0]);
-		}
 		static void Dispose()
 		{
-			if (CharSpriteMap != null) {
-				foreach(var kvp in CharSpriteMap) {
-					kvp.Value?.Dispose();
-				}
-			}
 			if (SourceImage != null) {
 				SourceImage.Dispose();
 			}
+			if (SpriteList != null) {
+				foreach(var img in SpriteList) {
+					if (img != null) { img.Dispose(); }
+				}
+			}
 		}
 
-		//char to sprite map
-		static Dictionary<char,Image<Rgba32>> CharSpriteMap = new Dictionary<char,Image<Rgba32>>();
-		//gray to char map
-		static SortedList<double,char> SpriteGrayMap = new SortedList<double,char>();
 		static Image<Rgba32> SourceImage = null;
+		static List<Image<Rgba32>> SpriteList = new List<Image<Rgba32>>();
 		static char[] SelectedCharSet = null;
 		static Font SelectedFont = null;
 	}
