@@ -1,3 +1,4 @@
+using System;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Advanced;
 using SixLabors.ImageSharp.PixelFormats;
@@ -49,6 +50,17 @@ namespace ArtAscii
 			});
 			var span = avgImg.GetPixelSpan();
 			return ToGray(span[0]);
+		}
+
+		public static void ForEachPixel(this Image<Rgba32> img, Func<int,int,Rgba32,Rgba32> visitor)
+		{
+			for(int y=0; y<img.Height; y++) {
+				var span = img.GetPixelRowSpan(y);
+				for(int x=0; x<img.Width; x++) {
+					Rgba32 update = visitor(x,y,span[x]);
+					span[x] = update;
+				}
+			}
 		}
 	}
 }

@@ -318,7 +318,7 @@ namespace ArtAscii
 		/// <param name="visitor">call back that is given the x,y coordinates along with the index of the character to render</param>
 		static void RenderArtClient(int charW, int charH, Action<int,int,int> visitor)
 		{
-			using (var picker = new SimplePicker(SourceImage,SpriteList,charW,charH))
+			using (var picker = new GridPicker(SourceImage,SpriteList,charW,charH))
 			{
 				for(int y=0; y<charH; y++)
 				{

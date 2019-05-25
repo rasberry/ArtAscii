@@ -8,16 +8,9 @@ using SixLabors.Primitives;
 
 namespace ArtAscii
 {
-	public interface ISpritePicker : IDisposable
+	public class AvgGrayPicker : ISpritePicker
 	{
-		IList<Image<Rgba32>> SpriteList { get; }
-		Image<Rgba32> SourceImage { get; }
-		int PickSprite(int x, int y);
-	}
-
-	public class SimplePicker : ISpritePicker
-	{
-		public SimplePicker(Image<Rgba32> source, IList<Image<Rgba32>> list, int charW, int charH)
+		public AvgGrayPicker(Image<Rgba32> source, IList<Image<Rgba32>> list, int charW, int charH)
 		{
 			WidthInCharacters = charW;
 			HeightInCharacters = charH;
